@@ -59,9 +59,9 @@ run, the sprite & colorblind sprite for it will be available.
 for each output variant of the icon in the final sprite
 - The gradient of the icon *is* important, and will be used in
  all output variants.
-- The icon should be a `.png`, and be less than-or-equal to 32
-  pixels tall and 27 pixels wide (the extra margin in width is
-  used to add the colorblind indicators)
+- The icon should be a `.png`, and be less than-or-equal to 32x32
+  pixels. **Note that with colorblindness indicators added,
+  the width of the final variants may be as much as 37 pixels.**
 
 ## Changing the appearance of the produced icons
 
@@ -119,3 +119,29 @@ To change the color of all icon variants representing
 `open_assigned-claimed` work orders, for instance, you would
 simply find all entries in `image_definitions.json` with this
 status and claim state, then change their color field as desired.
+
+## Displaying icons from sprites
+
+You can display an icon within a sprite by choosing an appropriate
+x and y offset, and an appropriate width/height. The x and y
+offsets for a given icon class can be found in
+`sprite_icon_coordinates.json`. For instance, an entry like the
+following indicates that the icon for a work order which has been
+closed because it is marked for deletion, is unclaimed, has
+multiple work order types, and is of age "old1" can be found at
+offset 50px from the left and 1250px from the top of the sprite.
+
+Note that these indices are the same for each source icon and
+doesn't depend on whether the sprite is for colorblind or normal
+color vision.
+
+```
+"closed_marked_for_deletion-unclaimed-old1-multi": {
+        "y": 1250,
+        "x": 50
+    }
+ ```
+
+For the width and height of the variant icons, a height of 32px and
+a height of 37px is recommended (the extra width is for the
+colorblindness indicator bar).

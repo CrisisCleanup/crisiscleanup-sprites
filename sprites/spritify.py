@@ -1,3 +1,4 @@
+import json
 import math
 import traceback
 from os import makedirs
@@ -119,11 +120,12 @@ class SpriteGenerator(object):
         Apply the transformation on all icons
         """
         source_icon_paths = self._get_icons_to_transform(source_directory)
+        all_sprites_directory = path_join(artifacts_dir, "sprites")
+        sprite_coordinate_index = None
         for source_icon_path in source_icon_paths:
             sprite_icons = self.generate_from_icon(Image.open(source_icon_path), 
                                                    apply_colorblind_transforms = False)
             
-            all_sprites_directory = path_join(artifacts_dir, "sprites")
             base_icon_name = splitext(basename(source_icon_path))[0]
             
             individual_icons_path = path_join(artifacts_dir, "individual_icons", base_icon_name)
@@ -132,7 +134,13 @@ class SpriteGenerator(object):
             
             colorblind_sprite_icons = self.generate_from_icon(Image.open(source_icon_path),
                                                    apply_colorblind_transforms = True)
-            self._write_sprite(colorblind_sprite_icons, source_icon_path, all_sprites_directory, suffix="-colorblind")
+            sprite_coordinate_index = self._write_sprite(colorblind_sprite_icons, 
+                                                         source_icon_path, 
+                                                         all_sprites_directory, 
+                                                         suffix="-colorblind")
+        
+        with open(path_join(all_sprites_directory, "sprite_icon_coordinates.json"), "w+") as f:
+            json.dump(sprite_coordinate_index, f, indent=4)
             
     def _write_sprite(self, sprite_icons, source_icon_path, output_directory, suffix=""):
         """
@@ -144,7 +152,15 @@ class SpriteGenerator(object):
                 the sprite icons.
             output_directory: The directory to write the sprite to
             suffix: Will be appended to the image name of the sprite.
+        Returns:
+            A dictionary mapping from icon class to the x/y coordinates of
+            that icon within the sprite.
         """
+        sprite_coordinate_index = {}
+        
+        current_x = 0
+        current_y = 0
+        
         rows_as_images = []
         for row_dict in SPRITE_ROWS:
             images_in_row = []
@@ -152,10 +168,18 @@ class SpriteGenerator(object):
                 icon_class = get_icon_class(row_dict, column_dict)
                 icon = sprite_icons[icon_class]
                 images_in_row.append(icon)
+                
+                sprite_coordinate_index[icon_class] = {
+                    "x" : current_x,
+                    "y" : current_y
+                    }
+                current_x += SPRITE_ICON_SPACING
             row_image = append_images(images_in_row,
                                       "horizontal", 
                                       "top", 
                                       image_extent=SPRITE_ICON_SPACING)
+            current_x = 0
+            current_y += SPRITE_ICON_SPACING
             rows_as_images.append(row_image)
         
         sprite = append_images(rows_as_images,
@@ -168,6 +192,8 @@ class SpriteGenerator(object):
         source_name = basename(splitext(source_icon_path)[0])
         file_name = path_join(output_directory, source_name+"-sprite"+suffix+".png")
         sprite.save(file_name)
+        
+        return sprite_coordinate_index
             
     
     def _write_individual_icons(self, sprite_icons, source_icon_path, output_dir):
