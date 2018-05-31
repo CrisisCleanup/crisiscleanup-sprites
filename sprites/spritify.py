@@ -1,13 +1,12 @@
-import argparse
-import json
 import math
-import sys
 import traceback
-from os import listdir, makedirs
-from os.path import isfile, splitext, basename
+from os import makedirs
+from os.path import splitext, basename
 from os.path import join as path_join
 
 from PIL import Image, ImageFilter
+
+from sprites.utils import list_files_with_extensions, append_images
 
 #how many pixels should be allocated for each icon
 #in a sprite
@@ -111,7 +110,7 @@ class SpriteGenerator(object):
         """
         Returns the paths for the icons to generate sprites from
         """
-        all_paths =  _list_files_with_extensions(source_directory,
+        all_paths =  list_files_with_extensions(source_directory,
                                            SpriteGenerator.SUPPORTED_ICON_FORMATS)
         return [p for p in all_paths if p not in self._excluded_paths]
     
@@ -233,7 +232,6 @@ class SpriteGenerator(object):
                 ("use-closed-base", self._use_closed_base),
                 ("color", self._set_color),
                 ("hue-rotate", self._rotate_hue),
-                ("grayscale", self._make_grayscale),
                 ("opacity", self._set_opacity)
             ]
         for transform_key, transform_func in transforms:
@@ -347,14 +345,6 @@ class SpriteGenerator(object):
             lambda a: int(math.floor(a*opacity)))
         return hsv_icon, alpha_channel
     
-    @staticmethod
-    def _make_grayscale(hsv_icon, alpha_channel, is_greyscale):
-        if not is_greyscale:
-            return hsv_icon, alpha_channel
-        
-        #You can convert between RGB and L/HSV, but not HSV and L
-        return hsv_icon.convert("L").convert("RGB").convert("HSV"), alpha_channel
-    
     def _add_colorblind_indicators(self, icon, indicator_list):
         """
         Add a bar of tiny indicators to the right of the icons
@@ -414,138 +404,8 @@ class SpriteGenerator(object):
         hsv_icon = icon.convert("HSV")
         
         return hsv_icon, alpha_channel
-        
-    
-def _list_files_with_extensions(directory, extensions=None):
-    extensions = extensions if extensions is not None else [""]
-    include = lambda d, f: (isfile(path_join(d, f)) 
-                            and any(f.endswith(extension) for extension in extensions))
-    
-    return [path_join(directory, f) for f in listdir(directory) if include(directory, f)]
 
-def parse_args():
-    parser = argparse.ArgumentParser(description="A script to transform "
-                                     "source icons into sprites using a "
-                                     "set of transformation rules for "
-                                     "representing status/age/claim state")
-    parser.add_argument("-r","--resources", 
-                        help="The root resources directory containing directories"
-                        " for source icons, configuration, and other resources.",
-                        required=True)
-    
-    parser.add_argument("-a","--artifacts", 
-                        help="The root directory to use for outputs.",
-                        default="./artifacts")
-    
-    return vars(parser.parse_args())
-
-
-def append_images(images, direction='horizontal', aligment='center', padding_pixels=0, image_extent=None):
-    """
-    Appends images in horizontal/vertical direction.
-
-    Args:
-        images: List of PIL images,
-        direction: direction of concatenation, 'horizontal' or 'vertical'
-        aligment: alignment mode if images need padding;
-           'left', 'right', 'top', 'bottom', or 'center',
-        padding_pixels: how many pixels to insert between images.
-            Cannot be used with image_extent
-        image_extent:
-            The width that horizontal images will be alloted,
-            or the height that vertical images will be alloted.
-            Cannot be used with padding_pixels
-        
-
-    Returns:
-        Concatenated image as a new PIL image object.
-    """
-    #Note: based on https://stackoverflow.com/a/46623632/2540669
-    
-    widths, heights = zip(*(i.size for i in images))
-
-    if direction=='horizontal':
-        if image_extent is None:
-            new_width = sum(widths)+padding_pixels*(len(images)-1)
-        else:
-            new_width = len(images)*image_extent
-        new_height = max(heights)
-    else:
-        new_width = max(widths)
-        if image_extent is None:
-            new_height = sum(heights)+padding_pixels*(len(images)-1)
-        else:
-            new_height = len(images)*image_extent
-
-    new_im = Image.new('RGBA', (new_width, new_height), color=(255,255,255,0))
-
-    offset = 0
-    for im in images:
-        if direction=='horizontal':
-            y = 0
-            if aligment == 'center':
-                y = int((new_height - im.size[1])/2)
-            elif aligment == 'bottom':
-                y = new_height - im.size[1]
-            new_im.paste(im, (offset, y))
-            offset += im.size[0]+padding_pixels if image_extent is None else image_extent
-        else:
-            x = 0
-            if aligment == 'center':
-                x = int((new_width - im.size[0])/2)
-            elif aligment == 'right':
-                x = new_width - im.size[0]
-            new_im.paste(im, (x, offset))
-            offset += im.size[1]+padding_pixels if image_extent is None else image_extent
-
-    return new_im
-
-def load_indicators_from_directory(base_directory):
-    png_paths = _list_files_with_extensions(base_directory, [".png"])
-    result = {}
-    for png_path in png_paths:
-        image = Image.open(png_path)
-        indicator_name = basename(png_path).replace(".png","")
-        result[indicator_name] = image
-    
-    return result
-
-def main():
-    #indicators created using: http://www.xiconeditor.com/
-    parsed_args = parse_args()
-    resource_dir = parsed_args["resources"]
-    artifacts_dir = parsed_args["artifacts"]
-    image_definition_json_path = path_join(resource_dir,"config", "image_definitions.json")
-    closed_base_path = path_join(resource_dir, "source_icons", "x.png")
-    
-    try:
-        with open(image_definition_json_path, "r") as f:
-            image_definition_json = json.load(f)
-    except Exception:
-        traceback.print_exc()
-        image_definition_json = None
-        print("Could not read image definition json")
-        sys.exit()
-        
-    try:
-        closed_base = Image.open(closed_base_path)
-    except Exception:
-        traceback.print_exc()
-        closed_base = None
-        print("Could not read closed base image")
-        sys.exit()
-        
-    indicator_dir = path_join(resource_dir, "icon_indicators")
-    overlay_dir = path_join(resource_dir, "overlays")
-    
-    generator = SpriteGenerator(image_definition_json, 
-                                closed_base, 
-                                excluded_paths=[closed_base_path],
-                                indicators = load_indicators_from_directory(indicator_dir),
-                                overlays = load_indicators_from_directory(overlay_dir))
-    
-    source_dir = path_join(resource_dir, "source_icons")
-    generator.generate_from_directory(source_dir, artifacts_dir)
 
 if __name__=="__main__":
+    from sprites.__main__ import main
     main()
