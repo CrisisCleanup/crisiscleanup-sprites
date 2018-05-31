@@ -115,7 +115,7 @@ class SpriteGenerator(object):
                                            SpriteGenerator.SUPPORTED_ICON_FORMATS)
         return [p for p in all_paths if p not in self._excluded_paths]
     
-    def generate_from_directory(self, source_directory):
+    def generate_from_directory(self, source_directory, artifacts_dir):
         """
         Apply the transformation on all icons
         """
@@ -123,14 +123,19 @@ class SpriteGenerator(object):
         for source_icon_path in source_icon_paths:
             sprite_icons = self.generate_from_icon(Image.open(source_icon_path), 
                                                    apply_colorblind_transforms = False)
-            self._write_sprite_directory(sprite_icons, source_icon_path)
-            self._write_sprite(sprite_icons, source_icon_path)
+            
+            all_sprites_directory = path_join(artifacts_dir, "sprites")
+            base_icon_name = splitext(basename(source_icon_path))[0]
+            
+            individual_icons_path = path_join(artifacts_dir, "individual_icons", base_icon_name)
+            self._write_individual_icons(sprite_icons, source_icon_path, individual_icons_path)
+            self._write_sprite(sprite_icons, source_icon_path, all_sprites_directory)
             
             colorblind_sprite_icons = self.generate_from_icon(Image.open(source_icon_path),
                                                    apply_colorblind_transforms = True)
-            self._write_sprite(colorblind_sprite_icons, source_icon_path, suffix="-colorblind")
+            self._write_sprite(colorblind_sprite_icons, source_icon_path, all_sprites_directory, suffix="-colorblind")
             
-    def _write_sprite(self, sprite_icons, source_icon_path, suffix=""):
+    def _write_sprite(self, sprite_icons, source_icon_path, output_directory, suffix=""):
         """
         Create a single image file containing icons "quilted" to form sprite
         
@@ -138,6 +143,7 @@ class SpriteGenerator(object):
             sprite_icons: A dict from icon class to image object
             source_icon_path: the full path to the source icon generating 
                 the sprite icons.
+            output_directory: The directory to write the sprite to
             suffix: Will be appended to the image name of the sprite.
         """
         rows_as_images = []
@@ -158,15 +164,14 @@ class SpriteGenerator(object):
                       "left",
                       image_extent=SPRITE_ICON_SPACING)
         
-        sprite_directory = splitext(source_icon_path)[0]
-        makedirs(sprite_directory, exist_ok=True)
+        makedirs(output_directory, exist_ok=True)
         
-        source_name = basename(sprite_directory)
-        file_name = path_join(sprite_directory, source_name+"-sprite"+suffix+".png")
+        source_name = basename(splitext(source_icon_path)[0])
+        file_name = path_join(output_directory, source_name+"-sprite"+suffix+".png")
         sprite.save(file_name)
             
     
-    def _write_sprite_directory(self, sprite_icons, source_icon_path):
+    def _write_individual_icons(self, sprite_icons, source_icon_path, output_dir):
         """
         Create a directory containing all permutations of a source icon
         
@@ -174,18 +179,17 @@ class SpriteGenerator(object):
             sprite_icons: A dict from icon class to image object
             source_icon_path: the full path to the source icon generating 
                 the sprite icons.
+            output_directory: The directory that the icons will be written to
         """
-        sprite_directory = splitext(source_icon_path)[0]
-        makedirs(sprite_directory, exist_ok=True)
+        makedirs(output_dir, exist_ok=True)
         
-        source_name = basename(sprite_directory)
         for icon_class, sprite_icon in sprite_icons.items():
-            file_name = path_join(sprite_directory, source_name+"-"+icon_class+".png")
+            file_name = path_join(output_dir, icon_class+".png")
             try:
                 sprite_icon.save(file_name)
             except IOError:
                 traceback.print_exc()
-                print("cannot convert icon '{}' with icon class '{}'".format(source_name,icon_class))
+                print("cannot convert an icon with icon class '{}'".format(icon_class))
 
     
     def generate_from_icon(self, icon, apply_colorblind_transforms = False):
@@ -424,9 +428,14 @@ def parse_args():
                                      "source icons into sprites using a "
                                      "set of transformation rules for "
                                      "representing status/age/claim state")
-    parser.add_argument("-d","--directory", 
-                        help="The directory containing the source icons",
+    parser.add_argument("-r","--resources", 
+                        help="The root resources directory containing directories"
+                        " for source icons, configuration, and other resources.",
                         required=True)
+    
+    parser.add_argument("-a","--artifacts", 
+                        help="The root directory to use for outputs.",
+                        default="./artifacts")
     
     return vars(parser.parse_args())
 
@@ -504,9 +513,10 @@ def load_indicators_from_directory(base_directory):
 def main():
     #indicators created using: http://www.xiconeditor.com/
     parsed_args = parse_args()
-    source_dir = parsed_args["directory"]
-    image_definition_json_path = path_join(source_dir, "image_definitions.json")
-    closed_base_path = path_join(source_dir, "x.png")
+    resource_dir = parsed_args["resources"]
+    artifacts_dir = parsed_args["artifacts"]
+    image_definition_json_path = path_join(resource_dir,"config", "image_definitions.json")
+    closed_base_path = path_join(resource_dir, "source_icons", "x.png")
     
     try:
         with open(image_definition_json_path, "r") as f:
@@ -525,8 +535,8 @@ def main():
         print("Could not read closed base image")
         sys.exit()
         
-    indicator_dir = path_join(source_dir, "_icon_indicators")
-    overlay_dir = path_join(source_dir, "_overlays")
+    indicator_dir = path_join(resource_dir, "icon_indicators")
+    overlay_dir = path_join(resource_dir, "overlays")
     
     generator = SpriteGenerator(image_definition_json, 
                                 closed_base, 
@@ -534,7 +544,8 @@ def main():
                                 indicators = load_indicators_from_directory(indicator_dir),
                                 overlays = load_indicators_from_directory(overlay_dir))
     
-    generator.generate_from_directory(source_dir)
+    source_dir = path_join(resource_dir, "source_icons")
+    generator.generate_from_directory(source_dir, artifacts_dir)
 
 if __name__=="__main__":
     main()
