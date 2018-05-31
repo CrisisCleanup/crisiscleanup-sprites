@@ -102,7 +102,8 @@ As a summary of some of the fields:
   should correspond to the filenames of images in
   `<resource dir>/icon_indicators`
 - **overlays**: A list of overlays that should be placed over
-  the icon (ex: a plus sign for "multi")
+  the icon (ex: a plus sign for "multi"). Should correspond to
+  the filenames of images in `<resource dir>/overlays`
 - **color**: The color of the icon variant. Note that this color
   is expressed similarly to an HSV color in that hue, saturation,
   and value are treated separately. However, only the hue is given
@@ -131,16 +132,16 @@ closed because it is marked for deletion, is unclaimed, has
 multiple work order types, and is of age "old1" can be found at
 offset 50px from the left and 1250px from the top of the sprite.
 
-Note that these indices are the same for each source icon and
-doesn't depend on whether the sprite is for colorblind or normal
-color vision.
-
 ```
 "closed_marked_for_deletion-unclaimed-old1-multi": {
         "y": 1250,
         "x": 50
     }
  ```
+
+Note that these indices are the same for each source icon and
+doesn't depend on whether the sprite is for colorblind or normal
+color vision.
 
 For the width and height of the variant icons, a height of 32px and
 a height of 37px is recommended (the extra width is for the
